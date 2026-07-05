@@ -109,6 +109,9 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now "$NAME"
+systemctl enable "$NAME"
+# restart (not `enable --now`): on a reinstall/upgrade the service is already running, and
+# `--now` would no-op — leaving the old process on the old unit/binary. restart applies both.
+systemctl restart "$NAME"
 
 echo "Done. Status: systemctl status $NAME   Logs: journalctl -u $NAME -f"
