@@ -10,7 +10,6 @@ set -euo pipefail
 
 REPO="Blake870/sim-agent"
 SERVICE_USER="sim-agent"
-BIN_PATH="/usr/local/bin/sim-agent"
 
 NAME="sim-agent"
 CODE="${AGENT_PAIRING_CODE:-}"
@@ -37,8 +36,12 @@ case "$NAME" in *[!a-zA-Z0-9_-]*) echo "Invalid --name (letters, digits, - and _
 
 STATE_DIR="/var/lib/$NAME"
 UNIT_DEST="/etc/systemd/system/$NAME.service"
+# The binary lives inside the service-owned state dir (not /usr/local/bin) so that
+# auto-update can atomically replace it: that dir is writable by the service user and
+# is the one path ProtectSystem=strict leaves read-write for the unit.
+BIN_PATH="$STATE_DIR/sim-agent"
 
-# 1. Obtain the binary (shared across instances).
+# 1. Obtain the binary.
 TMP_BIN="$(mktemp)"
 trap 'rm -f "$TMP_BIN"' EXIT
 if [ -n "$BINARY_SRC" ]; then
@@ -54,8 +57,8 @@ fi
 id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --home-dir /var/lib/sim-agent --shell /usr/sbin/nologin "$SERVICE_USER"
 install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$STATE_DIR"
 
-# 3. Install the binary.
-install -m 0755 "$TMP_BIN" "$BIN_PATH"
+# 3. Install the binary, owned by the service user so auto-update can replace it in place.
+install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "$TMP_BIN" "$BIN_PATH"
 
 # 4. Server URL override (only needed if the binary has no baked-in URL, e.g. a custom build).
 #    Written to the env file the service loads, and forwarded to the pairing step below.

@@ -29,4 +29,5 @@ else
   echo "Removed service '$NAME'. State kept at /var/lib/$NAME (re-run with --purge to delete the token)."
 fi
 
-# The shared binary and 'sim-agent' user are left in place (other instances may use them).
+# The 'sim-agent' user is left in place (other instances may use it). Each instance's
+# binary lives in its own state dir, so it's removed together with the state on --purge.
