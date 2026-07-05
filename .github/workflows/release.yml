@@ -73,7 +73,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          files=(dist/sim-agent-* dist/SHA256SUMS dist/*.minisig)
-          # Create the release if it doesn't exist yet; otherwise (re-run) upload/overwrite assets.
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes "${files[@]}" \
-            || gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${files[@]}"
+          # Two NON-overlapping globs, each asset exactly once:
+          #   dist/sim-agent-*  -> the binaries + their .minisig
+          #   dist/SHA256SUMS*  -> SHA256SUMS + SHA256SUMS.minisig
+          # Never use `dist/*` (would upload a stray minisign.key) or overlapping globs like
+          # `dist/sim-agent-*` + `dist/*.minisig` (double-lists sigs -> gh 422 "already exists").
+          files=(dist/sim-agent-* dist/SHA256SUMS*)
+          # Idempotent: drop any existing release for this tag (keeping the git tag), then
+          # recreate it cleanly. Handles re-runs and partial/failed prior publishes.
+          gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes "${files[@]}"
