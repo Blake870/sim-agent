@@ -73,6 +73,26 @@ The second one is the important one for a source-available project: it ties the 
 specific **source commit** and the **public build workflow**, so you can read exactly what
 produced your binary. (Byte-for-byte reproducible rebuilds are a stretch goal, not a claim.)
 
+## Auto-update
+
+The agent keeps itself patched. **On by default**, it checks each heartbeat, and when the
+server reports a newer build it downloads it, **verifies the minisign signature against the
+embedded public key**, swaps the binary, and restarts (automatic under systemd / the Windows
+task). A download that fails verification is discarded — even a compromised server or mirror
+can't hand you a tampered binary.
+
+**If you're extra careful about what runs on a machine holding your Steam secrets**, turn it
+off and drive updates yourself:
+```sh
+sudo ./install/install.sh --code <CODE> --no-auto-update   # at install
+AGENT_AUTO_UPDATE=0 ./sim-agent-linux-x64                    # per run / in the service env
+```
+Then watch [Releases](https://github.com/Blake870/sim-agent/releases), read the changes,
+verify each new binary (above), and swap it in on your own schedule. Either way the server
+can still set a **minimum version** — below it the agent is refused task work until you update.
+
+The preference is remembered in `agent-state.json`, so it sticks across restarts once set.
+
 ## Build from source
 
 ```sh

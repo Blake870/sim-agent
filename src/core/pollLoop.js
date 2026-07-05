@@ -1,5 +1,6 @@
 import { log } from '../util/log.js';
 import { runTask } from './taskRunner.js';
+import { isNewer, performUpdate } from '../update/updater.js';
 import { VERSION } from '../version.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -30,11 +31,23 @@ export async function startPollLoop(config, client) {
                 await runCycleTasks([demoTask()], config, client);
             } else {
                 const heartbeat = await client.heartbeat(VERSION);
+                const update = heartbeat?.update ?? {};
+                const required = update.required === true;
+                const newerAvailable = update.latest_version && isNewer(update.latest_version, VERSION);
 
-                if (heartbeat?.update?.required) {
+                // Self-update when enabled and there's something to update to.
+                if (config.autoUpdate && update.download_url && (required || newerAvailable)) {
+                    if (await performUpdate(update, config)) {
+                        stop(); // new binary installed — exit so the service restarts on it
+                        break;
+                    }
+                    // update failed: fall through (block if required, else keep working)
+                }
+
+                if (required) {
                     if (!blocked) {
                         blocked = true;
-                        announceUpdateRequired(heartbeat.update, config);
+                        announceUpdateRequired(update, config);
                     }
                     // Outdated: keep heartbeating (stay visible) but do no work.
                 } else {
@@ -58,8 +71,7 @@ function announceUpdateRequired(update, config) {
     const from = update.download_url ? ` Download: ${update.download_url}` : '';
 
     if (config.autoUpdate) {
-        // Phase 4 will perform the actual download/verify/swap here.
-        log.warn(`update required (${detail}). Auto-update is on but not yet implemented; halting task work.${from}`);
+        log.warn(`update required (${detail}) but auto-update did not apply — halting task work.${from}`);
     } else {
         log.warn(`update required (${detail}). Halting task work until updated (auto-update is off).${from}`);
     }

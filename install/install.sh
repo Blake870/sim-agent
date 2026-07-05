@@ -16,8 +16,9 @@ NAME="sim-agent"
 CODE="${AGENT_PAIRING_CODE:-}"
 BINARY_SRC=""
 SERVER_URL="${AGENT_SERVER_URL:-}"
+NO_AUTO_UPDATE=""
 
-usage() { echo "Usage: sudo ./install.sh [--name NAME] [--code ABCD-EFGH] [--binary FILE] [--server URL]"; }
+usage() { echo "Usage: sudo ./install.sh [--name NAME] [--code ABCD-EFGH] [--binary FILE] [--server URL] [--no-auto-update]"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -25,6 +26,7 @@ while [ $# -gt 0 ]; do
     --code) CODE="$2"; shift 2 ;;
     --binary) BINARY_SRC="$2"; shift 2 ;;
     --server) SERVER_URL="$2"; shift 2 ;;
+    --no-auto-update) NO_AUTO_UPDATE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1"; usage; exit 1 ;;
   esac
@@ -67,7 +69,10 @@ if [ -n "$CODE" ]; then
   echo "Pairing '$NAME' ..."
   sudo -u "$SERVICE_USER" env AGENT_PAIR_ONLY=1 AGENT_PAIRING_CODE="$CODE" \
     ${SERVER_URL:+AGENT_SERVER_URL="$SERVER_URL"} \
+    ${NO_AUTO_UPDATE:+AGENT_AUTO_UPDATE=0} \
     AGENT_STATE_PATH="$STATE_DIR/agent-state.json" "$BIN_PATH"
+elif [ -n "$NO_AUTO_UPDATE" ]; then
+  echo "Note: --no-auto-update is persisted during pairing; pass it together with --code."
 elif [ ! -f "$STATE_DIR/agent-state.json" ]; then
   echo "Note: '$NAME' not paired. Re-run with --code ABCD-EFGH, or pair later:"
   echo "  sudo -u $SERVICE_USER env AGENT_PAIR_ONLY=1 AGENT_PAIRING_CODE=... AGENT_STATE_PATH=$STATE_DIR/agent-state.json $BIN_PATH"

@@ -8,7 +8,8 @@
 param(
     [string]$Name = "sim-agent",
     [string]$Code = $env:AGENT_PAIRING_CODE,
-    [string]$Binary = ""
+    [string]$Binary = "",
+    [switch]$NoAutoUpdate
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,8 +37,10 @@ if ($Code) {
     $env:AGENT_PAIR_ONLY = "1"
     $env:AGENT_PAIRING_CODE = $Code
     $env:AGENT_STATE_PATH = (Join-Path $StateDir "agent-state.json")
+    if ($NoAutoUpdate) { $env:AGENT_AUTO_UPDATE = "0" }   # persisted into state during pairing
     & $Exe
-    Remove-Item Env:AGENT_PAIR_ONLY, Env:AGENT_PAIRING_CODE, Env:AGENT_STATE_PATH
+    Remove-Item Env:AGENT_PAIR_ONLY, Env:AGENT_PAIRING_CODE, Env:AGENT_STATE_PATH -ErrorAction SilentlyContinue
+    Remove-Item Env:AGENT_AUTO_UPDATE -ErrorAction SilentlyContinue
 }
 
 # 3. Register the scheduled task (boot start, SYSTEM, restart on failure).

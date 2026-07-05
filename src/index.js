@@ -3,8 +3,9 @@ import './loadEnv.js';
 import { loadConfig } from './config.js';
 import { startPollLoop } from './core/pollLoop.js';
 import { ensurePaired } from './pairing.js';
-import { ensureMachineId, loadState } from './state.js';
+import { ensureMachineId, loadState, saveState } from './state.js';
 import { createServerClient } from './transport/serverClient.js';
+import { cleanupOldBinary } from './update/updater.js';
 import { VERSION } from './version.js';
 import { log } from './util/log.js';
 
@@ -14,6 +15,7 @@ process.on('unhandledRejection', (reason) => {
 
 async function main() {
     const config = loadConfig();
+    cleanupOldBinary(); // remove a leftover pre-update binary, if any
 
     log.info(`sim-agent v${VERSION} starting (demo=${config.demo}, poll=${config.pollIntervalMs}ms)`);
 
@@ -31,6 +33,18 @@ async function main() {
 
     const state = loadState();
     const machineId = ensureMachineId(state);
+
+    // Auto-update is remembered in state: an explicit env value is persisted; otherwise
+    // the stored value applies (so it's set once and survives restarts without the env).
+    if (config.autoUpdateFromEnv) {
+        if (state.autoUpdate !== config.autoUpdate) {
+            state.autoUpdate = config.autoUpdate;
+            saveState(state);
+        }
+    } else if (typeof state.autoUpdate === 'boolean') {
+        config.autoUpdate = state.autoUpdate;
+    }
+
     const token = await ensurePaired(config, state, machineId);
 
     log.info(`machine ${machineId}`);
