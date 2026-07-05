@@ -22,9 +22,10 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Baked into the binary so users don't set it. Override with a repo variable
-          # (Settings → Secrets and variables → Actions → Variables) named SIM_AGENT_SERVER_URL.
-          SIM_AGENT_SERVER_URL: ${{ vars.SIM_AGENT_SERVER_URL }}
+          # Baked into the binary so users don't set it. Set via the repo variable
+          # AGENT_SERVER_URL (Settings → Secrets and variables → Actions → Variables);
+          # falls back to the prod URL so a missing variable never bakes an empty URL.
+          SIM_AGENT_SERVER_URL: ${{ vars.AGENT_SERVER_URL || 'https://sim.gudoguy.com' }}
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.os }}

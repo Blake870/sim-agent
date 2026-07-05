@@ -15,14 +15,16 @@ BIN_PATH="/usr/local/bin/sim-agent"
 NAME="sim-agent"
 CODE="${AGENT_PAIRING_CODE:-}"
 BINARY_SRC=""
+SERVER_URL="${AGENT_SERVER_URL:-}"
 
-usage() { echo "Usage: sudo ./install.sh [--name NAME] [--code ABCD-EFGH] [--binary /path/to/sim-agent-linux-x64]"; }
+usage() { echo "Usage: sudo ./install.sh [--name NAME] [--code ABCD-EFGH] [--binary FILE] [--server URL]"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --name) NAME="$2"; shift 2 ;;
     --code) CODE="$2"; shift 2 ;;
     --binary) BINARY_SRC="$2"; shift 2 ;;
+    --server) SERVER_URL="$2"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1"; usage; exit 1 ;;
   esac
@@ -53,17 +55,25 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$STATE_DIR"
 # 3. Install the binary.
 install -m 0755 "$TMP_BIN" "$BIN_PATH"
 
-# 4. Pair (writes the token into this instance's state) if a code was provided.
+# 4. Server URL override (only needed if the binary has no baked-in URL, e.g. a custom build).
+#    Written to the env file the service loads, and forwarded to the pairing step below.
+if [ -n "$SERVER_URL" ]; then
+  printf 'AGENT_SERVER_URL=%s\n' "$SERVER_URL" > "/etc/$NAME.env"
+  chmod 0644 "/etc/$NAME.env"
+fi
+
+# 5. Pair (writes the token into this instance's state) if a code was provided.
 if [ -n "$CODE" ]; then
   echo "Pairing '$NAME' ..."
   sudo -u "$SERVICE_USER" env AGENT_PAIR_ONLY=1 AGENT_PAIRING_CODE="$CODE" \
+    ${SERVER_URL:+AGENT_SERVER_URL="$SERVER_URL"} \
     AGENT_STATE_PATH="$STATE_DIR/agent-state.json" "$BIN_PATH"
 elif [ ! -f "$STATE_DIR/agent-state.json" ]; then
   echo "Note: '$NAME' not paired. Re-run with --code ABCD-EFGH, or pair later:"
   echo "  sudo -u $SERVICE_USER env AGENT_PAIR_ONLY=1 AGENT_PAIRING_CODE=... AGENT_STATE_PATH=$STATE_DIR/agent-state.json $BIN_PATH"
 fi
 
-# 5. Generate the unit for this instance and start it.
+# 6. Generate the unit for this instance and start it.
 cat > "$UNIT_DEST" <<EOF
 [Unit]
 Description=sim-agent ($NAME) - Steam task agent for sim.gudoguy.com
