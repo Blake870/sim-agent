@@ -64,11 +64,19 @@ async function main() {
 
     const client = createServerClient({ serverUrl: config.serverUrl, token, machineId });
 
-    // Rolling anti-clone nonce, persisted across restarts alongside the token.
+    // Rolling anti-clone nonce + the in-flight lease request id, persisted alongside the token.
     const session = {
         nonce: state.nonce ?? null,
-        persist(nonce) {
-            state.nonce = nonce;
+        requestId: state.requestId ?? null,
+        persist() {
+            state.nonce = this.nonce;
+            state.requestId = this.requestId;
+            saveState(state);
+        },
+        revoke() {
+            state.token = null;
+            state.nonce = null;
+            state.requestId = null;
             saveState(state);
         },
     };

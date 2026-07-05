@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+
 import { log } from '../util/log.js';
 import { runTask } from './taskRunner.js';
 import { isNewer, performUpdate } from '../update/updater.js';
@@ -5,17 +7,19 @@ import { VERSION } from '../version.js';
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const noopSession = { nonce: null, requestId: null, persist() {}, revoke() {} };
+
 /**
- * Heartbeat, check the server's version directive, then (if allowed) pull and run work.
- * When the server requires an update, the agent stays alive and keeps heartbeating but
- * does no task work — the enforcement is authoritative server-side; this is the client
- * half that halts cleanly and tells the user.
+ * Heartbeat, check the server's version directive, then (if allowed) lease and run work.
+ * Leasing advances the rolling anti-clone nonce (seat guard), so the loop threads the nonce
+ * through getTasks and persists the new one. When the server requires an update the agent
+ * stays alive and keeps heartbeating but does no work.
  *
  * @param {ReturnType<import('../config.js').loadConfig>} config
  * @param {ReturnType<import('../transport/serverClient.js').createServerClient>|null} client
- * @param {{ nonce: string|null, persist: (nonce: string) => void }} [session]  rolling anti-clone nonce
+ * @param {{ nonce: string|null, requestId: string|null, persist: () => void, revoke: () => void }} [session]
  */
-export async function startPollLoop(config, client, session = { nonce: null, persist() {} }) {
+export async function startPollLoop(config, client, session = noopSession) {
     let running = true;
     let blocked = false;
     let paused = false;
@@ -32,15 +36,7 @@ export async function startPollLoop(config, client, session = { nonce: null, per
             if (config.demo) {
                 await runCycleTasks([demoTask()], config, client);
             } else {
-                const heartbeat = await client.heartbeat(VERSION, session.nonce);
-
-                // Persist the rotated nonce immediately — before any other work — so a crash
-                // can't leave us replaying a stale nonce (which the server reads as a clone).
-                if (heartbeat?.nonce) {
-                    session.nonce = heartbeat.nonce;
-                    session.persist(heartbeat.nonce);
-                }
-
+                const heartbeat = await client.heartbeat(VERSION);
                 const update = heartbeat?.update ?? {};
                 const required = update.required === true;
                 const newerAvailable = update.latest_version && isNewer(update.latest_version, VERSION);
@@ -78,20 +74,42 @@ export async function startPollLoop(config, client, session = { nonce: null, per
                             paused = false;
                             log.info('maintenance lifted — resuming task work');
                         }
-                        await runCycleTasks(await client.getTasks(), config, client);
+
+                        // A stable request id, reused across retries, lets a lost lease
+                        // response be treated as an idempotent re-sync rather than a clone.
+                        if (!session.requestId) {
+                            session.requestId = randomUUID();
+                            session.persist();
+                        }
+
+                        const { tasks, nonce } = await client.getTasks(session.nonce, session.requestId);
+
+                        if (nonce) {
+                            session.nonce = nonce;
+                            session.requestId = null; // consumed — next lease uses a fresh id
+                            session.persist();
+                        }
+
+                        await runCycleTasks(tasks, config, client);
                     }
                 }
             }
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
 
-            if (err?.status === 409) {
-                // machine_mismatch or agent_cloned: the server tore down (or refused) this
-                // pairing because another machine is using it. Re-pair from the sim panel.
-                log.error(`this machine is no longer paired (${msg}). Re-pair it from the sim panel.`);
-            } else {
-                log.error(`poll cycle failed: ${msg}`);
+            if (err?.status === 401 || err?.status === 409) {
+                // 401 = token no longer resolves; 409 = machine_mismatch / agent_cloned. Either
+                // way this pairing was revoked (another machine is using the seat). Clear the
+                // dead credentials so we don't hot-loop, and exit so the service restarts and
+                // re-pairs (with a fresh code) instead of replaying an invalid token forever.
+                log.error(`this machine's pairing was revoked by the server (${msg}). Re-pair it from the sim panel.`);
+                session.revoke();
+                running = false;
+                process.exitCode = 1;
+                break;
             }
+
+            log.error(`poll cycle failed: ${msg}`);
         }
 
         await sleep(config.pollIntervalMs);

@@ -4,8 +4,8 @@
  * only request/response plumbing.
  */
 export function createServerClient({ serverUrl, token, machineId = null }) {
-    async function request(method, path, { body, auth = true } = {}) {
-        const headers = { accept: 'application/json', 'content-type': 'application/json' };
+    async function request(method, path, { body, auth = true, headers: extra = {} } = {}) {
+        const headers = { accept: 'application/json', 'content-type': 'application/json', ...extra };
 
         if (auth && token) {
             headers.authorization = `Bearer ${token}`;
@@ -55,24 +55,32 @@ export function createServerClient({ serverUrl, token, machineId = null }) {
             });
         },
 
-        /**
-         * Prove liveness, report the running version, and advance the anti-clone nonce.
-         * The response carries the next `nonce` to persist and send back next time.
-         */
-        heartbeat(version, nonce = null) {
-            return request('POST', '/api/agent/heartbeat', { body: { version, nonce } });
+        /** Prove liveness and report the running version. Carries no nonce (seat guard is on tasks). */
+        heartbeat(version) {
+            return request('POST', '/api/agent/heartbeat', { body: { version } });
         },
 
-        /** Fetch tasks leased to this agent (`[]` until the tasks endpoint exists). */
-        async getTasks() {
+        /**
+         * Lease work. Advances the rolling anti-clone nonce, so the current `nonce` is sent and
+         * a fresh one comes back to persist. `requestId` is stable across retries of the SAME
+         * request so a lost response is treated as an idempotent re-sync, not a clone.
+         * @returns {Promise<{ tasks: any[], nonce: string|null }>}
+         */
+        async getTasks(nonce = null, requestId = null) {
             try {
-                const data = await request('GET', '/api/agent/tasks');
-                return data?.tasks ?? [];
+                const data = await request('GET', '/api/agent/tasks', {
+                    headers: {
+                        ...(nonce ? { 'x-agent-nonce': nonce } : {}),
+                        ...(requestId ? { 'x-request-id': requestId } : {}),
+                    },
+                });
+
+                return { tasks: data?.tasks ?? [], nonce: data?.nonce ?? null };
             } catch (error) {
-                // 404: tasks endpoint not deployed yet. 426: agent below min_version
+                // 404: tasks endpoint not deployed yet. 426: agent below required version
                 // (the poll loop already gates on the heartbeat directive; this is a guard).
                 if (error.status === 404 || error.status === 426) {
-                    return [];
+                    return { tasks: [], nonce: null };
                 }
                 throw error;
             }

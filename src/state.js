@@ -1,4 +1,4 @@
-import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, closeSync, existsSync, fsyncSync, openSync, readFileSync, renameSync, writeSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { resolve } from 'node:path';
 
@@ -24,7 +24,20 @@ export function loadState() {
 }
 
 export function saveState(state) {
-    writeFileSync(STATE_PATH, JSON.stringify(state, null, 2) + '\n', { mode: 0o600 });
+    // Write to a temp file, flush to disk, then atomically rename over the real one, so a
+    // crash mid-write can't truncate agent-state.json and lose the token/nonce.
+    const tmp = `${STATE_PATH}.tmp`;
+    const data = JSON.stringify(state, null, 2) + '\n';
+
+    const fd = openSync(tmp, 'w', 0o600);
+    try {
+        writeSync(fd, data);
+        fsyncSync(fd);
+    } finally {
+        closeSync(fd);
+    }
+
+    renameSync(tmp, STATE_PATH);
 
     try {
         chmodSync(STATE_PATH, 0o600);
