@@ -21,6 +21,10 @@ jobs:
           node-version: 22
       - run: npm ci
       - run: npm run build
+        env:
+          # Baked into the binary so users don't set it. Override with a repo variable
+          # (Settings → Secrets and variables → Actions → Variables) named SIM_AGENT_SERVER_URL.
+          SIM_AGENT_SERVER_URL: ${{ vars.SIM_AGENT_SERVER_URL }}
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.os }}

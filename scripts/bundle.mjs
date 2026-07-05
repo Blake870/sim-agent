@@ -20,7 +20,10 @@ export async function bundleAgent() {
         format: 'cjs',
         target: 'node18',
         outfile: BUNDLE_FILE,
-        define: { __SIM_AGENT_VERSION__: JSON.stringify(version) },
+        define: {
+            __SIM_AGENT_VERSION__: JSON.stringify(version),
+            __SIM_AGENT_SERVER_URL__: JSON.stringify((process.env.SIM_AGENT_SERVER_URL ?? '').trim()),
+        },
         legalComments: 'none',
     });
 

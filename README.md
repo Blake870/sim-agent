@@ -12,12 +12,17 @@ tasks. It has no business logic of its own; it just executes Steam primitives th
    - Windows: `sim-agent-win-x64.exe`
    - Linux: `sim-agent-linux-x64`
 2. **Verify it** (see below).
-3. Create a pairing code in the sim panel (**Agents → your agent → Pair machine**).
-4. Run it with the code:
+3. On Linux/macOS, make it executable (downloaded release assets don't carry the +x bit):
    ```sh
-   AGENT_SERVER_URL=https://sim.gudoguy.com AGENT_PAIRING_CODE=ABCD-EFGH ./sim-agent-linux-x64
+   chmod +x sim-agent-linux-x64
    ```
-   The token is saved to `agent-state.json` next to the binary; you won't need the code again.
+4. Create a pairing code in the sim panel (**Agents → your agent → Pair machine**).
+5. Run it with the code (the server URL is built in — no need to set it):
+   ```sh
+   AGENT_PAIRING_CODE=ABCD-EFGH ./sim-agent-linux-x64
+   ```
+   The token is saved to `agent-state.json` next to the binary; you won't need the code again —
+   after that, just `./sim-agent-linux-x64`.
 
 Configuration is via env vars (or a `.env` file in the working directory) — see
 [`.env.example`](.env.example).
