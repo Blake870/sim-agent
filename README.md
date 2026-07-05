@@ -38,7 +38,8 @@ systemctl status sim-agent                      # check
 journalctl -u sim-agent -f                       # logs
 sudo ./install/uninstall.sh                       # remove (keeps state; --purge wipes it)
 ```
-Runs as a dedicated non-root `sim-agent` user; state (the token) lives in `/var/lib/sim-agent`.
+Runs as a dedicated non-root `sim-agent` user; the binary and state (the token) live in
+`/var/lib/sim-agent` — see [Files & locations](#files--locations).
 
 **Windows (scheduled task, as Administrator):**
 ```powershell
@@ -50,12 +51,41 @@ Unregister-ScheduledTask sim-agent                # remove
 Both accept `--binary` / `-Binary` to install a binary you already downloaded and verified.
 
 **Multiple agents on one machine** — give each its own `--name` (default `sim-agent`). Each
-gets a separate service and its own state/token, sharing the binary:
+gets a separate service, self-contained under `/var/lib/<name>` (its own binary + state/token):
 ```sh
 sudo ./install/install.sh --name work  --code ABCD-EFGH
 sudo ./install/install.sh --name alt   --code WXYZ-1234
-# → services `work` and `alt`, state in /var/lib/work and /var/lib/alt
+# → services `work` and `alt`, each self-contained in /var/lib/work and /var/lib/alt
 ```
+
+## Files & locations
+
+A service install (`--name` defaults to `sim-agent`) lays things out as:
+
+**Linux (systemd)**
+
+| What | Path |
+| --- | --- |
+| Binary | `/var/lib/<name>/sim-agent` |
+| State / config — token, machine id, `autoUpdate` | `/var/lib/<name>/agent-state.json` |
+| Env overrides (optional) | `/etc/<name>.env` |
+| systemd unit | `/etc/systemd/system/<name>.service` |
+
+Runs as the non-root `sim-agent` user; `/var/lib/<name>` is `0700` since it holds the token.
+The binary lives here (not `/usr/local/bin`) so the hardened, non-root service can replace it
+on auto-update.
+
+**Windows (scheduled task, runs as SYSTEM)**
+
+| What | Path |
+| --- | --- |
+| Binary | `C:\Program Files\sim-agent\sim-agent.exe` |
+| State / config — token, machine id, `autoUpdate` | `C:\ProgramData\<name>\agent-state.json` |
+| Task | scheduled task named `<name>` |
+
+Run it **manually** (not as a service) instead and there's nothing to hunt for: `agent-state.json`
+sits in the current working directory (override with `AGENT_STATE_PATH`), and settings come from
+env vars or a `.env` file in that same directory.
 
 ## Verify what you downloaded
 
