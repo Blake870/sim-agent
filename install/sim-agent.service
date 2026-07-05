@@ -1,0 +1,28 @@
+[Unit]
+Description=sim-agent (Steam task agent for sim.gudoguy.com)
+Documentation=https://github.com/Blake870/sim-agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=sim-agent
+Group=sim-agent
+WorkingDirectory=/var/lib/sim-agent
+ExecStart=/usr/local/bin/sim-agent
+Restart=always
+RestartSec=10
+
+# Optional overrides (AGENT_AUTO_UPDATE, AGENT_SERVER_URL, ...); fine if it doesn't exist.
+EnvironmentFile=-/etc/sim-agent/agent.env
+
+# Hardening — the agent only needs outbound network and its own state directory.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+StateDirectory=sim-agent
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target
