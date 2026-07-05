@@ -62,8 +62,18 @@ async function main() {
         return;
     }
 
-    const client = createServerClient({ serverUrl: config.serverUrl, token });
-    await startPollLoop(config, client);
+    const client = createServerClient({ serverUrl: config.serverUrl, token, machineId });
+
+    // Rolling anti-clone nonce, persisted across restarts alongside the token.
+    const session = {
+        nonce: state.nonce ?? null,
+        persist(nonce) {
+            state.nonce = nonce;
+            saveState(state);
+        },
+    };
+
+    await startPollLoop(config, client, session);
 }
 
 main().catch((err) => {

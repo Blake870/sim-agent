@@ -3,12 +3,17 @@
  * and reports results — the server never connects to the agent. No business logic here,
  * only request/response plumbing.
  */
-export function createServerClient({ serverUrl, token }) {
+export function createServerClient({ serverUrl, token, machineId = null }) {
     async function request(method, path, { body, auth = true } = {}) {
         const headers = { accept: 'application/json', 'content-type': 'application/json' };
 
         if (auth && token) {
             headers.authorization = `Bearer ${token}`;
+        }
+
+        // Binds every authenticated request to the paired machine (server-side clone guard).
+        if (machineId) {
+            headers['x-machine-id'] = machineId;
         }
 
         const res = await fetch(`${serverUrl}${path}`, {
@@ -50,9 +55,12 @@ export function createServerClient({ serverUrl, token }) {
             });
         },
 
-        /** Prove liveness and report the running version. */
-        heartbeat(version) {
-            return request('POST', '/api/agent/heartbeat', { body: { version } });
+        /**
+         * Prove liveness, report the running version, and advance the anti-clone nonce.
+         * The response carries the next `nonce` to persist and send back next time.
+         */
+        heartbeat(version, nonce = null) {
+            return request('POST', '/api/agent/heartbeat', { body: { version, nonce } });
         },
 
         /** Fetch tasks leased to this agent (`[]` until the tasks endpoint exists). */

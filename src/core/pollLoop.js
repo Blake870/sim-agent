@@ -13,8 +13,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
  *
  * @param {ReturnType<import('../config.js').loadConfig>} config
  * @param {ReturnType<import('../transport/serverClient.js').createServerClient>|null} client
+ * @param {{ nonce: string|null, persist: (nonce: string) => void }} [session]  rolling anti-clone nonce
  */
-export async function startPollLoop(config, client) {
+export async function startPollLoop(config, client, session = { nonce: null, persist() {} }) {
     let running = true;
     let blocked = false;
     let paused = false;
@@ -31,7 +32,15 @@ export async function startPollLoop(config, client) {
             if (config.demo) {
                 await runCycleTasks([demoTask()], config, client);
             } else {
-                const heartbeat = await client.heartbeat(VERSION);
+                const heartbeat = await client.heartbeat(VERSION, session.nonce);
+
+                // Persist the rotated nonce immediately — before any other work — so a crash
+                // can't leave us replaying a stale nonce (which the server reads as a clone).
+                if (heartbeat?.nonce) {
+                    session.nonce = heartbeat.nonce;
+                    session.persist(heartbeat.nonce);
+                }
+
                 const update = heartbeat?.update ?? {};
                 const required = update.required === true;
                 const newerAvailable = update.latest_version && isNewer(update.latest_version, VERSION);
@@ -74,7 +83,15 @@ export async function startPollLoop(config, client) {
                 }
             }
         } catch (err) {
-            log.error(`poll cycle failed: ${err instanceof Error ? err.message : String(err)}`);
+            const msg = err instanceof Error ? err.message : String(err);
+
+            if (err?.status === 409) {
+                // machine_mismatch or agent_cloned: the server tore down (or refused) this
+                // pairing because another machine is using it. Re-pair from the sim panel.
+                log.error(`this machine is no longer paired (${msg}). Re-pair it from the sim panel.`);
+            } else {
+                log.error(`poll cycle failed: ${msg}`);
+            }
         }
 
         await sleep(config.pollIntervalMs);

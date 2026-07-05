@@ -41,6 +41,7 @@ export async function ensurePaired(config, state, machineId) {
 
     state.token = result.token;
     state.agentId = result.agent_id;
+    state.nonce = result.nonce ?? null; // rolling anti-clone nonce; advanced on each heartbeat
     saveState(state);
 
     log.info(`paired successfully as agent ${state.agentId}`);
