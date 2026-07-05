@@ -35,6 +35,12 @@ async function main() {
 
     log.info(`machine ${machineId}`);
 
+    if (config.pairOnly) {
+        log.info('paired — exiting (AGENT_PAIR_ONLY)');
+
+        return;
+    }
+
     const client = createServerClient({ serverUrl: config.serverUrl, token });
     await startPollLoop(config, client);
 }

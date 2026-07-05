@@ -16,6 +16,7 @@ const BUILTIN_SERVER_URL = typeof __SIM_AGENT_SERVER_URL__ !== 'undefined' ? __S
  *   pollIntervalMs: number,
  *   demo: boolean,
  *   autoUpdate: boolean,
+ *   pairOnly: boolean,
  * }}
  */
 export function loadConfig() {
@@ -30,5 +31,7 @@ export function loadConfig() {
         pollIntervalMs: Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 20_000,
         demo: process.env.AGENT_DEMO === '1',
         autoUpdate: process.env.AGENT_AUTO_UPDATE === '1',
+        // Pair, persist the token, and exit — used by the installer before starting the service.
+        pairOnly: process.env.AGENT_PAIR_ONLY === '1',
     };
 }

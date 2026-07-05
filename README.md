@@ -27,6 +27,36 @@ tasks. It has no business logic of its own; it just executes Steam primitives th
 Configuration is via env vars (or a `.env` file in the working directory) — see
 [`.env.example`](.env.example).
 
+## Run as a service (recommended)
+
+So it starts on boot and restarts if it stops.
+
+**Linux (systemd):**
+```sh
+sudo ./install/install.sh --code ABCD-EFGH     # downloads latest, pairs, starts
+systemctl status sim-agent                      # check
+journalctl -u sim-agent -f                       # logs
+sudo ./install/uninstall.sh                       # remove (keeps state; --purge wipes it)
+```
+Runs as a dedicated non-root `sim-agent` user; state (the token) lives in `/var/lib/sim-agent`.
+
+**Windows (scheduled task, as Administrator):**
+```powershell
+.\install\install.ps1 -Code ABCD-EFGH           # downloads latest, pairs, starts at boot
+Get-ScheduledTask sim-agent                       # check
+Unregister-ScheduledTask sim-agent                # remove
+```
+
+Both accept `--binary` / `-Binary` to install a binary you already downloaded and verified.
+
+**Multiple agents on one machine** — give each its own `--name` (default `sim-agent`). Each
+gets a separate service and its own state/token, sharing the binary:
+```sh
+sudo ./install/install.sh --name work  --code ABCD-EFGH
+sudo ./install/install.sh --name alt   --code WXYZ-1234
+# → services `work` and `alt`, state in /var/lib/work and /var/lib/alt
+```
+
 ## Verify what you downloaded
 
 Two independent checks:
