@@ -69,9 +69,11 @@ jobs:
           subject-path: dist/sim-agent-*
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/sim-agent-*
-            dist/SHA256SUMS
-            dist/*.minisig
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          files=(dist/sim-agent-* dist/SHA256SUMS dist/*.minisig)
+          # Create the release if it doesn't exist yet; otherwise (re-run) upload/overwrite assets.
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes "${files[@]}" \
+            || gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${files[@]}"
