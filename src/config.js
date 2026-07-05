@@ -8,6 +8,7 @@
  *   pairingCode: string,
  *   pollIntervalMs: number,
  *   demo: boolean,
+ *   autoUpdate: boolean,
  * }}
  */
 export function loadConfig() {
@@ -18,5 +19,6 @@ export function loadConfig() {
         pairingCode: (process.env.AGENT_PAIRING_CODE ?? '').trim(),
         pollIntervalMs: Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 20_000,
         demo: process.env.AGENT_DEMO === '1',
+        autoUpdate: process.env.AGENT_AUTO_UPDATE === '1',
     };
 }

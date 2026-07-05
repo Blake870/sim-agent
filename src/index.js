@@ -12,14 +12,18 @@ process.on('unhandledRejection', (reason) => {
     log.error(`unhandled rejection: ${reason instanceof Error ? reason.message : String(reason)}`);
 });
 
-const config = loadConfig();
+async function main() {
+    const config = loadConfig();
 
-log.info(`sim-agent v${VERSION} starting (demo=${config.demo}, poll=${config.pollIntervalMs}ms)`);
+    log.info(`sim-agent v${VERSION} starting (demo=${config.demo}, poll=${config.pollIntervalMs}ms)`);
 
-if (config.demo) {
-    // No server: run the task loop with synthetic tasks.
-    await startPollLoop(config, null);
-} else {
+    if (config.demo) {
+        // No server: run the task loop with synthetic tasks.
+        await startPollLoop(config, null);
+
+        return;
+    }
+
     if (config.serverUrl === '') {
         log.error('AGENT_SERVER_URL is required (or set AGENT_DEMO=1 to run without a server)');
         process.exit(1);
@@ -34,3 +38,8 @@ if (config.demo) {
     const client = createServerClient({ serverUrl: config.serverUrl, token });
     await startPollLoop(config, client);
 }
+
+main().catch((err) => {
+    log.error(`fatal: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
+});

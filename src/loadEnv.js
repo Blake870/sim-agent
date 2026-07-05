@@ -1,15 +1,14 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 /**
  * Minimal `.env` loader — no dependencies, so the published agent stays trivial to audit.
- * Parses `KEY=value` lines from `<repo>/.env` into `process.env` without overriding
- * values already set in the real environment. Not a full dotenv implementation:
- * supports comments (`#`), blank lines, and optional surrounding quotes.
+ * Parses `KEY=value` lines from `.env` in the working directory into `process.env`
+ * without overriding values already set in the real environment. Reading from cwd (not a
+ * source-relative path) means it works identically when run from source or as a packaged
+ * binary. Not a full dotenv implementation: supports comments (`#`), blank lines, quotes.
  */
-const srcDir = dirname(fileURLToPath(import.meta.url));
-const envPath = resolve(srcDir, '..', '.env');
+const envPath = resolve(process.cwd(), '.env');
 
 if (existsSync(envPath)) {
     const contents = readFileSync(envPath, 'utf8');

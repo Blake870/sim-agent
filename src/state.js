@@ -1,16 +1,15 @@
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
 
 /**
  * Local agent state — persisted across restarts. Holds the token issued at pairing, so
- * the file is written private (0600). Override the location with AGENT_STATE_PATH.
+ * the file is written private (0600). Defaults to the working directory (works the same
+ * from source or a packaged binary); override the location with AGENT_STATE_PATH.
  */
-const srcDir = dirname(fileURLToPath(import.meta.url));
 const STATE_PATH = (process.env.AGENT_STATE_PATH ?? '').trim() !== ''
     ? resolve(process.env.AGENT_STATE_PATH)
-    : resolve(srcDir, '..', 'agent-state.json');
+    : resolve(process.cwd(), 'agent-state.json');
 
 export function loadState() {
     if (!existsSync(STATE_PATH)) {

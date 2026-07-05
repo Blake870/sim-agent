@@ -5,17 +5,17 @@ import { VERSION } from '../version.js';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /**
- * Heartbeat, pull work, dispatch it, report the result, sleep, repeat. This is the whole
- * agent: a client that polls. It never accepts inbound connections.
- *
- * In demo mode there is no server, so it skips the heartbeat and invents a synthetic
- * `example` task each cycle to exercise the loop end to end.
+ * Heartbeat, check the server's version directive, then (if allowed) pull and run work.
+ * When the server requires an update, the agent stays alive and keeps heartbeating but
+ * does no task work — the enforcement is authoritative server-side; this is the client
+ * half that halts cleanly and tells the user.
  *
  * @param {ReturnType<import('../config.js').loadConfig>} config
  * @param {ReturnType<import('../transport/serverClient.js').createServerClient>|null} client
  */
 export async function startPollLoop(config, client) {
     let running = true;
+    let blocked = false;
 
     const stop = () => {
         running = false;
@@ -29,14 +29,39 @@ export async function startPollLoop(config, client) {
             if (config.demo) {
                 await runCycleTasks([demoTask()], config, client);
             } else {
-                await client.heartbeat(VERSION);
-                await runCycleTasks(await client.getTasks(), config, client);
+                const heartbeat = await client.heartbeat(VERSION);
+
+                if (heartbeat?.update?.required) {
+                    if (!blocked) {
+                        blocked = true;
+                        announceUpdateRequired(heartbeat.update, config);
+                    }
+                    // Outdated: keep heartbeating (stay visible) but do no work.
+                } else {
+                    if (blocked) {
+                        blocked = false;
+                        log.info('agent back within version policy — resuming task work');
+                    }
+                    await runCycleTasks(await client.getTasks(), config, client);
+                }
             }
         } catch (err) {
             log.error(`poll cycle failed: ${err instanceof Error ? err.message : String(err)}`);
         }
 
         await sleep(config.pollIntervalMs);
+    }
+}
+
+function announceUpdateRequired(update, config) {
+    const detail = `min ${update.min_version ?? '?'}, running ${VERSION}`;
+    const from = update.download_url ? ` Download: ${update.download_url}` : '';
+
+    if (config.autoUpdate) {
+        // Phase 4 will perform the actual download/verify/swap here.
+        log.warn(`update required (${detail}). Auto-update is on but not yet implemented; halting task work.${from}`);
+    } else {
+        log.warn(`update required (${detail}). Halting task work until updated (auto-update is off).${from}`);
     }
 }
 

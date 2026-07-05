@@ -61,8 +61,10 @@ export function createServerClient({ serverUrl, token }) {
                 const data = await request('GET', '/api/agent/tasks');
                 return data?.tasks ?? [];
             } catch (error) {
-                if (error.status === 404) {
-                    return []; // tasks endpoint not deployed yet
+                // 404: tasks endpoint not deployed yet. 426: agent below min_version
+                // (the poll loop already gates on the heartbeat directive; this is a guard).
+                if (error.status === 404 || error.status === 426) {
+                    return [];
                 }
                 throw error;
             }
