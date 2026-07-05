@@ -17,6 +17,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 export async function startPollLoop(config, client) {
     let running = true;
     let blocked = false;
+    let paused = false;
 
     const stop = () => {
         running = false;
@@ -55,7 +56,21 @@ export async function startPollLoop(config, client) {
                         blocked = false;
                         log.info('agent back within version policy — resuming task work');
                     }
-                    await runCycleTasks(await client.getTasks(), config, client);
+
+                    if (heartbeat?.maintenance === true) {
+                        // Server put this agent's owner (or everyone) into maintenance: keep
+                        // heartbeating so it stays visible, but pull no work until it lifts.
+                        if (!paused) {
+                            paused = true;
+                            log.warn('server reports maintenance mode — pausing task work until it is lifted');
+                        }
+                    } else {
+                        if (paused) {
+                            paused = false;
+                            log.info('maintenance lifted — resuming task work');
+                        }
+                        await runCycleTasks(await client.getTasks(), config, client);
+                    }
                 }
             }
         } catch (err) {
