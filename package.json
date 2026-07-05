@@ -1,6 +1,6 @@
 {
     "name": "sim-agent",
-    "version": "0.1.8",
+    "version": "0.1.9",
     "description": "Thin, source-available agent that executes Steam primitives for sim (sim.gudoguy.com).",
     "private": true,
     "type": "module",

@@ -85,13 +85,16 @@ can't hand you a tampered binary.
 off and drive updates yourself:
 ```sh
 sudo ./install/install.sh --code <CODE> --no-auto-update   # at install
-AGENT_AUTO_UPDATE=0 ./sim-agent-linux-x64                    # per run / in the service env
+AGENT_AUTO_UPDATE=0 ./sim-agent-linux-x64                    # one-off; the choice is then stored
 ```
 Then watch [Releases](https://github.com/Blake870/sim-agent/releases), read the changes,
 verify each new binary (above), and swap it in on your own schedule. Either way the server
 can still set a **minimum version** — below it the agent is refused task work until you update.
 
-The preference is remembered in `agent-state.json`, so it sticks across restarts once set.
+The preference is the `autoUpdate` field in `agent-state.json` — the source of truth. The
+agent records it on first run (default `true`) and every run keeps it in sync, so you can
+flip it right in that file (set `"autoUpdate": false`, restart) without any environment
+variable. `AGENT_AUTO_UPDATE=0/1` is just a one-shot way to set that stored value.
 
 ## Build from source
 

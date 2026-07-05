@@ -34,8 +34,12 @@ async function main() {
     const state = loadState();
     const machineId = ensureMachineId(state);
 
-    // Auto-update is remembered in state: an explicit env value is persisted; otherwise
-    // the stored value applies (so it's set once and survives restarts without the env).
+    // Auto-update preference lives in agent-state.json — the source of truth. Precedence:
+    //   1. an explicit env value (AGENT_AUTO_UPDATE=0/1) sets/overrides it and is persisted;
+    //   2. otherwise the stored value applies;
+    //   3. a fresh install with neither records the default (on).
+    // The effective value is always written back, so the state file reflects the real
+    // setting and you can flip it there (edit "autoUpdate", restart) without touching the env.
     if (config.autoUpdateFromEnv) {
         if (state.autoUpdate !== config.autoUpdate) {
             state.autoUpdate = config.autoUpdate;
@@ -43,6 +47,9 @@ async function main() {
         }
     } else if (typeof state.autoUpdate === 'boolean') {
         config.autoUpdate = state.autoUpdate;
+    } else {
+        state.autoUpdate = config.autoUpdate;
+        saveState(state);
     }
 
     const token = await ensurePaired(config, state, machineId);
