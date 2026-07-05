@@ -23,6 +23,11 @@ export async function startPollLoop(config, client, session = noopSession) {
     let running = true;
     let blocked = false;
     let paused = false;
+    let authFailures = 0;
+
+    // Only tear down after several *consecutive* auth rejections, so a one-off 401/409 from an
+    // edge proxy/LB during a deploy doesn't wipe a healthy pairing. A real revocation persists.
+    const MAX_AUTH_FAILURES = 3;
 
     const stop = () => {
         running = false;
@@ -94,22 +99,30 @@ export async function startPollLoop(config, client, session = noopSession) {
                     }
                 }
             }
+
+            authFailures = 0; // a full cycle completed without an auth rejection
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
 
             if (err?.status === 401 || err?.status === 409) {
                 // 401 = token no longer resolves; 409 = machine_mismatch / agent_cloned. Either
-                // way this pairing was revoked (another machine is using the seat). Clear the
-                // dead credentials so we don't hot-loop, and exit so the service restarts and
-                // re-pairs (with a fresh code) instead of replaying an invalid token forever.
-                log.error(`this machine's pairing was revoked by the server (${msg}). Re-pair it from the sim panel.`);
-                session.revoke();
-                running = false;
-                process.exitCode = 1;
-                break;
-            }
+                // way the server is rejecting this pairing (another machine is using the seat).
+                authFailures += 1;
 
-            log.error(`poll cycle failed: ${msg}`);
+                if (authFailures >= MAX_AUTH_FAILURES) {
+                    // Clear the dead credentials so we don't hot-loop, and exit so the service
+                    // restarts and re-pairs (with a fresh code) rather than replaying it forever.
+                    log.error(`pairing revoked by the server (${msg}) after ${authFailures} rejections. Re-pair it from the sim panel.`);
+                    session.revoke();
+                    running = false;
+                    process.exitCode = 1;
+                    break;
+                }
+
+                log.warn(`server rejected this agent (${msg}) [${authFailures}/${MAX_AUTH_FAILURES}] — retrying before giving up.`);
+            } else {
+                log.error(`poll cycle failed: ${msg}`);
+            }
         }
 
         await sleep(config.pollIntervalMs);

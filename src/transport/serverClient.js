@@ -13,7 +13,7 @@ export function createServerClient({ serverUrl, token, machineId = null }) {
 
         // Binds every authenticated request to the paired machine (server-side clone guard).
         if (machineId) {
-            headers['x-machine-id'] = machineId;
+            headers['x-agent-machine'] = machineId;
         }
 
         const res = await fetch(`${serverUrl}${path}`, {
@@ -71,7 +71,7 @@ export function createServerClient({ serverUrl, token, machineId = null }) {
                 const data = await request('GET', '/api/agent/tasks', {
                     headers: {
                         ...(nonce ? { 'x-agent-nonce': nonce } : {}),
-                        ...(requestId ? { 'x-request-id': requestId } : {}),
+                        ...(requestId ? { 'x-agent-lease-id': requestId } : {}),
                     },
                 });
 
