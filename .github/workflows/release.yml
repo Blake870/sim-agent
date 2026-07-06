@@ -88,3 +88,16 @@ jobs:
           # recreate it cleanly. Handles re-runs and partial/failed prior publishes.
           gh release delete "$TAG" --repo "$GITHUB_REPOSITORY" --yes 2>/dev/null || true
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes "${files[@]}"
+
+      - name: Refresh SIM latest-release cache
+        # Nudge SIM to drop its hourly "latest release" cache now that the release is live, so
+        # agents are told to upgrade immediately instead of after the cache expires. Non-fatal:
+        # a SIM outage or unset secret must never fail an otherwise-good release.
+        env:
+          SIM_URL: ${{ vars.AGENT_SERVER_URL || 'https://sim.gudoguy.com' }}
+          TOKEN: ${{ secrets.SIM_RELEASE_REFRESH_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then echo "SIM_RELEASE_REFRESH_TOKEN not set — skipping cache refresh"; exit 0; fi
+          curl -fsS --max-time 15 --retry 3 --retry-delay 5 -X POST "$SIM_URL/api/agent/release-refresh" \
+            -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" \
+            && echo "SIM cache refreshed" || echo "SIM refresh call failed (non-fatal)"
