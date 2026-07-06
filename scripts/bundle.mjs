@@ -25,6 +25,7 @@ export async function bundleAgent() {
         define: {
             __SIM_AGENT_VERSION__: JSON.stringify(version),
             __SIM_AGENT_SERVER_URL__: JSON.stringify((process.env.SIM_AGENT_SERVER_URL ?? '').trim()),
+            __SIM_AGENT_GATEWAY_URL__: JSON.stringify((process.env.SIM_AGENT_GATEWAY_URL ?? '').trim()),
             __SIM_AGENT_MINISIGN_PUBKEY__: JSON.stringify(pubKey),
         },
         legalComments: 'none',

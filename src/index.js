@@ -2,8 +2,10 @@
 import './loadEnv.js';
 import { loadConfig } from './config.js';
 import { startPollLoop } from './core/pollLoop.js';
+import { createWaker } from './core/waker.js';
 import { ensurePaired } from './pairing.js';
 import { ensureMachineId, loadState, saveState } from './state.js';
+import { createGatewayClient } from './transport/gatewayClient.js';
 import { createServerClient } from './transport/serverClient.js';
 import { cleanupOldBinary } from './update/updater.js';
 import { VERSION } from './version.js';
@@ -64,6 +66,18 @@ async function main() {
 
     const client = createServerClient({ serverUrl: config.serverUrl, token, machineId });
 
+    // Poke channel: the gateway pushes a nudge and we pull immediately instead of waiting
+    // out the poll interval. Pure latency optimization — a poke wakes the loop's wait.
+    const waker = createWaker();
+    const gateway = createGatewayClient({
+        url: config.gatewayUrl,
+        token,
+        machineId,
+        version: VERSION,
+        onPoke: () => waker.wake(),
+    });
+    gateway.start();
+
     // Rolling anti-clone nonce + the in-flight lease request id, persisted alongside the token.
     const session = {
         nonce: state.nonce ?? null,
@@ -81,7 +95,7 @@ async function main() {
         },
     };
 
-    await startPollLoop(config, client, session);
+    await startPollLoop(config, client, session, waker);
 }
 
 main().catch((err) => {

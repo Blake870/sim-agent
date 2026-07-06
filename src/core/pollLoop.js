@@ -2,10 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import { log } from '../util/log.js';
 import { runTask } from './taskRunner.js';
+import { createWaker } from './waker.js';
 import { isNewer, performUpdate } from '../update/updater.js';
 import { VERSION } from '../version.js';
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const noopSession = { nonce: null, requestId: null, persist() {}, revoke() {} };
 
@@ -18,8 +17,9 @@ const noopSession = { nonce: null, requestId: null, persist() {}, revoke() {} };
  * @param {ReturnType<import('../config.js').loadConfig>} config
  * @param {ReturnType<import('../transport/serverClient.js').createServerClient>|null} client
  * @param {{ nonce: string|null, requestId: string|null, persist: () => void, revoke: () => void }} [session]
+ * @param {ReturnType<import('./waker.js').createWaker>} [waker] interruptible wait; a gateway poke wakes it
  */
-export async function startPollLoop(config, client, session = noopSession) {
+export async function startPollLoop(config, client, session = noopSession, waker = createWaker()) {
     let running = true;
     let blocked = false;
     let paused = false;
@@ -125,7 +125,9 @@ export async function startPollLoop(config, client, session = noopSession) {
             }
         }
 
-        await sleep(config.pollIntervalMs);
+        // Wait out the interval, but let a gateway poke cut it short so new work is picked
+        // up immediately instead of after a full poll cycle.
+        await waker.wait(config.pollIntervalMs);
     }
 }
 

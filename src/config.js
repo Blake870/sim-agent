@@ -5,6 +5,18 @@
  */
 const BUILTIN_SERVER_URL = typeof __SIM_AGENT_SERVER_URL__ !== 'undefined' ? __SIM_AGENT_SERVER_URL__ : '';
 
+/** Gateway (poke channel) WS URL, optionally baked in at build time like the server URL. */
+const BUILTIN_GATEWAY_URL = typeof __SIM_AGENT_GATEWAY_URL__ !== 'undefined' ? __SIM_AGENT_GATEWAY_URL__ : '';
+
+/** Derive the gateway WS URL from the server URL (http->ws, https->wss) + the ws path. */
+function deriveGatewayUrl(serverUrl) {
+    if (!serverUrl) {
+        return '';
+    }
+
+    return serverUrl.replace(/^http/, 'ws') + '/agent-ws';
+}
+
 /**
  * Runtime configuration from the environment. The token and machine id are NOT here —
  * they live in the persisted state file (see state.js), since the token is issued at
@@ -12,6 +24,7 @@ const BUILTIN_SERVER_URL = typeof __SIM_AGENT_SERVER_URL__ !== 'undefined' ? __S
  *
  * @returns {{
  *   serverUrl: string,
+ *   gatewayUrl: string,
  *   pairingCode: string,
  *   pollIntervalMs: number,
  *   demo: boolean,
@@ -26,10 +39,18 @@ export function loadConfig() {
     // Env wins (dev/staging override), else the build-time default.
     const serverUrl = ((process.env.AGENT_SERVER_URL ?? '').trim() || BUILTIN_SERVER_URL).replace(/\/+$/, '');
 
+    // Explicit override, else baked-in, else derived from the server URL.
+    const gatewayUrl =
+        ((process.env.AGENT_GATEWAY_URL ?? '').trim() || BUILTIN_GATEWAY_URL || deriveGatewayUrl(serverUrl)).replace(
+            /\/+$/,
+            '',
+        );
+
     const autoUpdateEnv = process.env.AGENT_AUTO_UPDATE;
 
     return {
         serverUrl,
+        gatewayUrl,
         pairingCode: (process.env.AGENT_PAIRING_CODE ?? '').trim(),
         pollIntervalMs: Number.isFinite(pollIntervalMs) && pollIntervalMs > 0 ? pollIntervalMs : 20_000,
         demo: process.env.AGENT_DEMO === '1',

@@ -25,7 +25,12 @@ jobs:
           # Baked into the binary so users don't set it. Set via the repo variable
           # AGENT_SERVER_URL (Settings → Secrets and variables → Actions → Variables);
           # falls back to the prod URL so a missing variable never bakes an empty URL.
-          SIM_AGENT_SERVER_URL: ${{ vars.AGENT_SERVER_URL || 'https://sim.gudoguy.com' }}
+          SIM_AGENT_SERVER_URL: ${{ vars.AGENT_SERVER_URL || '' }}
+          # Poke-channel gateway WS URL, baked in the same way (repo variable
+          # AGENT_GATEWAY_URL). Left empty by default: the agent then derives it from the
+          # server URL (https://host → wss://host/agent-ws). Set the variable only when the
+          # gateway is reachable at a different host/path than the main server.
+          SIM_AGENT_GATEWAY_URL: ${{ vars.AGENT_GATEWAY_URL || '' }}
       - uses: actions/upload-artifact@v4
         with:
           name: binary-${{ matrix.os }}

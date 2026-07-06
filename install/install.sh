@@ -15,9 +15,10 @@ NAME="sim-agent"
 CODE="${AGENT_PAIRING_CODE:-}"
 BINARY_SRC=""
 SERVER_URL="${AGENT_SERVER_URL:-}"
+GATEWAY_URL="${AGENT_GATEWAY_URL:-}"
 NO_AUTO_UPDATE=""
 
-usage() { echo "Usage: sudo ./install.sh [--name NAME] [--code ABCD-EFGH] [--binary FILE] [--server URL] [--no-auto-update]"; }
+usage() { echo "Usage: sudo ./install.sh [--name NAME] [--code ABCD-EFGH] [--binary FILE] [--server URL] [--gateway URL] [--no-auto-update]"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -25,6 +26,7 @@ while [ $# -gt 0 ]; do
     --code) CODE="$2"; shift 2 ;;
     --binary) BINARY_SRC="$2"; shift 2 ;;
     --server) SERVER_URL="$2"; shift 2 ;;
+    --gateway) GATEWAY_URL="$2"; shift 2 ;;
     --no-auto-update) NO_AUTO_UPDATE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown option: $1"; usage; exit 1 ;;
@@ -60,10 +62,13 @@ install -d -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0700 "$STATE_DIR"
 # 3. Install the binary, owned by the service user so auto-update can replace it in place.
 install -o "$SERVICE_USER" -g "$SERVICE_USER" -m 0755 "$TMP_BIN" "$BIN_PATH"
 
-# 4. Server URL override (only needed if the binary has no baked-in URL, e.g. a custom build).
-#    Written to the env file the service loads, and forwarded to the pairing step below.
-if [ -n "$SERVER_URL" ]; then
-  printf 'AGENT_SERVER_URL=%s\n' "$SERVER_URL" > "/etc/$NAME.env"
+# 4. URL overrides (only needed if the binary has no baked-in URL, e.g. a custom build).
+#    Written to the env file the service loads, and (for the server) forwarded to pairing.
+#    The gateway URL is optional — unset, the agent derives it from the server URL.
+if [ -n "$SERVER_URL" ] || [ -n "$GATEWAY_URL" ]; then
+  : > "/etc/$NAME.env"
+  if [ -n "$SERVER_URL" ];  then printf 'AGENT_SERVER_URL=%s\n'  "$SERVER_URL"  >> "/etc/$NAME.env"; fi
+  if [ -n "$GATEWAY_URL" ]; then printf 'AGENT_GATEWAY_URL=%s\n' "$GATEWAY_URL" >> "/etc/$NAME.env"; fi
   chmod 0644 "/etc/$NAME.env"
 fi
 
