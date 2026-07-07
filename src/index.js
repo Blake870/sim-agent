@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import './loadEnv.js';
+import { accountStatuses, loadAccounts } from './accounts.js';
 import { loadConfig } from './config.js';
 import { startPollLoop } from './core/pollLoop.js';
 import { createWaker } from './core/waker.js';
@@ -65,6 +66,16 @@ async function main() {
     }
 
     const client = createServerClient({ serverUrl: config.serverUrl, token, machineId });
+
+    // Report which credentials this machine holds (presence only, no secrets) so the panel
+    // can badge each account per machine. Best-effort — a failure here must not block work.
+    try {
+        const statuses = accountStatuses(loadAccounts());
+        await client.reportAccountStatuses(statuses);
+        log.info(`reported credential status for ${statuses.length} account(s)`);
+    } catch (err) {
+        log.warn(`account status report failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
 
     // Poke channel: the gateway pushes a nudge and we pull immediately instead of waiting
     // out the poll interval. Pure latency optimization — a poke wakes the loop's wait.

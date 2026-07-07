@@ -61,6 +61,15 @@ export function createServerClient({ serverUrl, token, machineId = null }) {
         },
 
         /**
+         * Report which credentials this machine holds for each local account — presence
+         * booleans only, never the secrets. Drives the per-machine badges in the panel.
+         * @param {Array<{ steam64_id: string, has_steam_credentials: boolean, has_csfloat_credentials: boolean }>} accounts
+         */
+        reportAccountStatuses(accounts) {
+            return request('POST', '/api/agent/account-statuses', { body: { accounts } });
+        },
+
+        /**
          * Lease work. Advances the rolling anti-clone nonce, so the current `nonce` is sent and
          * a fresh one comes back to persist. `requestId` is stable across retries of the SAME
          * request so a lost response is treated as an idempotent re-sync, not a clone.
