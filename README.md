@@ -58,6 +58,60 @@ sudo ./install/install.sh --name alt   --code WXYZ-1234
 # → services `work` and `alt`, each self-contained in /var/lib/work and /var/lib/alt
 ```
 
+## Accounts
+
+The agent operates Steam accounts using credentials that live **only on this machine** — they
+are never sent to sim. The server only learns, per machine, *which* credentials are present
+(shown as a green / yellow / red badge next to each account); the secrets themselves stay local.
+
+Create an `accounts.json` next to the agent — in the service's state dir (`/var/lib/<name>/` on
+Linux, `C:\ProgramData\<name>\` on Windows) or the working directory for a manual run. Override
+the location with `AGENT_ACCOUNTS_PATH`.
+
+```json
+{
+  "accounts": [
+    {
+      "steam64_id": "76561198000000000",
+      "username": "login_name",
+      "password": "your-steam-password",
+      "shared_secret": "base64secret==",
+      "identity_secret": "base64secret==",
+      "device_id": "android:2e2f-…",
+      "csfloat_api_key": "csfloat-key",
+      "label": "main-1"
+    }
+  ]
+}
+```
+
+| Field | Required | Purpose |
+| --- | --- | --- |
+| `steam64_id` | yes | Identifies the account to sim. **Must be a JSON string** — a 17-digit number overflows and corrupts. |
+| `username` | yes | Steam login. |
+| `password` | yes | Steam login. |
+| `shared_secret` | yes | Generates the login 2FA (TOTP) code. |
+| `identity_secret` | yes | Signs trade / market confirmations. |
+| `device_id` | no | Mobile-authenticator device id; some confirmation flows need it. |
+| `csfloat_api_key` | no | CSFloat API key — only for accounts that sell on CSFloat. |
+| `label` | no | Human tag shown in the agent's logs. |
+
+Every required field except `password` comes straight from a Steam Desktop Authenticator
+`.maFile` (`account_name` → `username`, plus `shared_secret`, `identity_secret`, `device_id`).
+
+The badge sim shows for each account **on this machine**:
+
+- 🟢 **green** — all credentials present (Steam + CSFloat).
+- 🟡 **yellow** — Steam credentials present, `csfloat_api_key` missing.
+- 🔴 **red** — one or more Steam credentials missing.
+
+The agent reads this file **once at startup** and reports the status then. After editing it,
+restart the agent (`systemctl restart <name>` on Linux, or restart the scheduled task on
+Windows) so it re-reads and re-reports.
+
+> **Keep this file protected — it holds plaintext secrets.** A service install already restricts
+> the state dir to the service user (`0700` on Linux); for a manual run, lock the file down yourself.
+
 ## Files & locations
 
 A service install (`--name` defaults to `sim-agent`) lays things out as:
@@ -68,6 +122,7 @@ A service install (`--name` defaults to `sim-agent`) lays things out as:
 | --- | --- |
 | Binary | `/var/lib/<name>/sim-agent` |
 | State / config — token, machine id, `autoUpdate` | `/var/lib/<name>/agent-state.json` |
+| Accounts (secrets) — Steam / CSFloat credentials | `/var/lib/<name>/accounts.json` |
 | Env overrides (optional) | `/etc/<name>.env` |
 | systemd unit | `/etc/systemd/system/<name>.service` |
 
@@ -81,11 +136,12 @@ on auto-update.
 | --- | --- |
 | Binary | `C:\Program Files\sim-agent\sim-agent.exe` |
 | State / config — token, machine id, `autoUpdate` | `C:\ProgramData\<name>\agent-state.json` |
+| Accounts (secrets) — Steam / CSFloat credentials | `C:\ProgramData\<name>\accounts.json` |
 | Task | scheduled task named `<name>` |
 
 Run it **manually** (not as a service) instead and there's nothing to hunt for: `agent-state.json`
-sits in the current working directory (override with `AGENT_STATE_PATH`), and settings come from
-env vars or a `.env` file in that same directory.
+and `accounts.json` sit in the current working directory (override with `AGENT_STATE_PATH` /
+`AGENT_ACCOUNTS_PATH`), and settings come from env vars or a `.env` file in that same directory.
 
 ## Verify what you downloaded
 
