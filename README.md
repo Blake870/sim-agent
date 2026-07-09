@@ -112,6 +112,28 @@ Windows) so it re-reads and re-reports.
 > **Keep this file protected — it holds plaintext secrets.** A service install already restricts
 > the state dir to the service user (`0700` on Linux); for a manual run, lock the file down yourself.
 
+## Re-pairing
+
+If an agent's pairing is torn down — it ran on two machines at once (clone protection revokes
+the seat), you revoked it in the panel, or you're moving the seat to a new box — the server
+refuses its old token and it stops doing work until it's paired again with a fresh code.
+
+1. In the sim panel: **Agents → your agent → Pair machine** to get a new code.
+2. On the machine, from the agent folder:
+   ```sh
+   sudo ./install/re-pair.sh --code ABCD-EFGH        # add --name <name> for a named instance
+   ```
+
+`re-pair.sh` stops the service, clears the stale token, pairs with the new code, and starts it
+again. The binary and `accounts.json` are left untouched — only the pairing is reset (a fresh
+machine id is bound to the **same** agent record). Re-pass `--no-auto-update` if that instance
+had auto-update off.
+
+On **Windows**, from an Admin PowerShell in the agent folder:
+```powershell
+.\install\re-pair.ps1 -Code ABCD-EFGH             # -Name <name> for a named instance
+```
+
 ## Files & locations
 
 A service install (`--name` defaults to `sim-agent`) lays things out as:
